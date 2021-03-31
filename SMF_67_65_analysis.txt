@@ -1,0 +1,295 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[R.app GUI 1.73 (7892) x86_64-apple-darwin17.0]
+
+[Workspace restored from /Users/kabdellah/.RData]
+[History restored from /Users/kabdellah/.Rapp.history]
+
+> pwd
+Error: object 'pwd' not found
+> library(ggplot2)
+> library(readr)
+> library(dplyr)
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+> contributions <- read_csv("contributions.csv",
++ 	col_types = cols(
++ 			contributor_lastname = col_skip(),
++ 			contributor_firstname = col_skip()), 
++ 	  na = "0")
+> 
+> committees <- read_csv("committees.csv", 
++     col_types = cols(), 
++     na = "0")
+> ### Views
+> ##############################################################################
+> 
+> ## X : full dataset
+> 
+> X = merge(committees, contributions, by = "calaccess_committee_id")
+> 
+> ## X2 : modelling subset
+> 
+> X2 = data_frame("amount"=X$amount,
++  "zip"=X$contributor_zip,
++  "prop"=X$prop_name,
++  "number"=X$ccdc_prop_id-19,
++  "founder"=X$contributor_is_self_employed,
++  "job"=X$contributor_occupation,
++  "stance"=X$committee_position,
++  "size"=abs(amount))
+Warning message:
+`data_frame()` was deprecated in tibble 1.1.0.
+Please use `tibble()` instead.
+This warning is displayed once every 8 hours.
+Call `lifecycle::last_warnings()` to see where this warning was generated. 
+> 
+> odd_obs <- X[X$amount < 0 & X$committee_position=="SUPPORT",]
+> 
+> ## Paradox : How can the amount be negative 
+> ## while the committee supports the prop the contribution was made under?
+> #################################################################################
+> 
+> odd_obs <- X[X$amount < 0 & X$committee_position=="SUPPORT",]
+> 
+> # odd_obs per job
+> odd_obs %>%
++  group_by(odd_obs$prop_name) %>%
++  summarize(n()) 
+# A tibble: 8 x 2
+  `odd_obs$prop_name`                                                                                                       `n()`
+* <chr>                                                                                                                     <int>
+1 PROPOSITION 051 - SCHOOL BONDS. FUNDING FOR K-12 SCHOOL AND COMMUNITY COLLEGE FACILITIES. INITIATIVE STATUTORY AMENDMENT.     2
+2 PROPOSITION 059- SB 254 (CHAPTER 20, STATUTES OF 2016), ALLEN. CAMPAIGN FINANCE: VOTER INSTRUCTION                            3
+3 PROPOSITION 061- STATE PRESCRIPTION DRUG PURCHASES. PRICING STANDARDS. INITIATIVE STATUTE.                                    1
+4 PROPOSITION 062- DEATH PENALTY. INITIATIVE STATUTE.                                                                           2
+5 PROPOSITION 063- FIREARMS. AMMUNITION SALES. INTIATIVE STATUTE.                                                              17
+6 PROPOSITION 064- MARIJUANA LEGALIZATION. INITIATIVE STATUTE.                                                                  7
+7 PROPOSITION 066- DEATH PENALTY. PROCEDURES. INITIATIVE STATUTE.                                                               2
+8 <NA>                                                                                                                          2
+> ## prop 63 over-represented for with this issue.
+> 
+> ## Missing Data
+> 
+> ###############################################################################
+> colMeans(is.na(X2)) %>% round(5) * 100
+ amount     zip    prop  number founder     job  stance    size 
+  0.018   0.000   0.000   0.000   0.000   0.000   0.000   0.018 
+> indexsizena = which(is.na(X2$amount))
+> 
+> # X3 : amount censored.
+> X3 = X2[indexsizena,]
+> 
+> X3 %>% 
++ 	group_by(job) %>%
++  summarise(n())
+# A tibble: 7 x 2
+  job                  `n()`
+* <chr>                <int>
+1 ACTIVISION               1
+2 ADVOCATE                 1
+3 ATTORNEY                 1
+4 ELECTRONICS ENGINEER     1
+5 ENGINEER                 1
+6 MACHINIST                1
+7 RETIRED                 10
+>  # 16 obs, 10 of which are retired
+> 
+> X3 %>% 
++ group_by(number) %>%
++  summarise(n())
+# A tibble: 2 x 2
+  number `n()`
+*  <dbl> <int>
+1     63    14
+2     67     2
+>  # 16 obs, 14 of which are for prop 63. 
+> #These are firearms amounts, why are so many of these missing?
+> 
+> 
+> ### unique propositions
+> 
+> # There are 17 unique propositions
+> unique_props <- sort(unique(committees$prop_name))
+> 
+> # number of unique contributions
+> unique_contributions <- X %>%
++  summarize(N=n()) %>%
++  unlist()
+> 
+> # average contributions per proposition
+> avg.contr.per.prop = unique_contributions/length(unique_props)
+> 
+> # average amount per proposition
+> avg.amount.per.prop = sum(X$amount,
++ na.rm = T)/unique_contributions
+> 
+> # average size per prop
+> avg.size.per.prop = sum(X2$size,
++  na.rm = T)/unique_contributions ### data processing ions
+> 
+> # average amount per prop per contributor
+> avg.dollar.per.contr=avg.amount.per.prop/avg.contr.per.prop
+> ## this is about one, meaning on average one donor corresponds with one dollar.
+> 
+> ### Prop 67
+> prop67 = X2[X2$number==67,]
+> prop67 %>%
++  group_by(founder) %>%
++  summarize("mean_size"=mean(size, na.rm=T),
++  'sum_size'=sum(size, na.rm=T))
+# A tibble: 2 x 3
+  founder mean_size sum_size
+* <lgl>       <dbl>    <dbl>
+1 FALSE        790.  4391390
+2 TRUE         110.    79184
+> 
+> # top 10 jobs by gross contributions
+> prop67 %>%
++  group_by(job) %>%
++  summarise("N"=n()) %>%
++  arrange(desc(N)) %>%
++  mutate("mean"=sum())
+# A tibble: 652 x 3
+   job                   N  mean
+   <chr>             <int> <int>
+ 1 RETIRED             952     0
+ 2 UNEMPLOYED          872     0
+ 3 TEACHER             171     0
+ 4 ATTORNEY            127     0
+ 5 N/A                 118     0
+ 6 ENGINEER            108     0
+ 7 OWNER                92     0
+ 8 PROFESSOR            90     0
+ 9 SOFTWARE ENGINEER    82     0
+10 PHYSICIAN            75     0
+# … with 642 more rows
+> 
+> # top 10 by avg contribution size
+> prop67 %>% group_by(job) %>%
++ 	summarise("avgsize"=mean(size, na.rm = T),
++  "contribs"=n(), amount=sum(amount, na.rm=T)) %>%
++  arrange(desc(avgsize))
+# A tibble: 652 x 4
+   job                           avgsize contribs  amount
+   <chr>                           <dbl>    <int>   <dbl>
+ 1 "BUSINESSWOMAN"               100000         1  100000
+ 2 ""                             51085.       69 3524862
+ 3 "ADVOCACY & PHILANTHROPY"      50000         1   50000
+ 4 "STAFF & OPERATIONS MANAGER"   25000         1   25000
+ 5 "EXECUTIVE DIRECTOR"            6042.       18  108750
+ 6 "CHIEF EXECUTIVE OFFICER"       1000         2    2000
+ 7 "GENERAL COUNSEL"               1000         1    1000
+ 8 "RESEARCH MANAGER"              1000         2    2000
+ 9 "ACCOUNT REPRESENTATIVE"         500         2    1000
+10 "BUSINESS OPERATIONS MANAGER"    500         2    1000
+# … with 642 more rows
+> 
+> ## SUPPORT
+> yes_on_67 = prop67 %>%
++ 	subset(stance=="SUPPORT")
+> 
+> yes_on_67 %>%
++  summarize(n()) # 6252 voted in support of over-turning the ban
+# A tibble: 1 x 1
+  `n()`
+  <int>
+1  6252
+> 
+> yes_on_67 %>%
++ 	 group_by(founder) %>%
++ 	 summarize(mean=n()/nrow(yes_on_67)) 
+# A tibble: 2 x 2
+  founder  mean
+* <lgl>   <dbl>
+1 FALSE   0.885
+2 TRUE    0.115
+> # 88% of the contributions were non founders
+> 
+> yes_on_67 %>%
++ 	 group_by(founder) %>%
++  summarize("total"=sum(size,na.rm=T),"N"=n()) %>%
++  mutate(total/N) 
+# A tibble: 2 x 4
+  founder    total     N `total/N`
+* <lgl>      <dbl> <int>     <dbl>
+1 FALSE   1709977.  5534      309.
+2 TRUE      79184    718      110.
+> # non founder supporters of prop 67 made contributions that were 
+> # thrice as high on average,
+> # $110 and ~$300.
+> 
+> yes_on_67 %>%
++ 	 summarize("total"=sum(size,na.rm=T),"N"=n()) %>% mutate(total/N) 
+# A tibble: 1 x 3
+     total     N `total/N`
+     <dbl> <int>     <dbl>
+1 1789161.  6252      286.
+> #contributions to support the ban average $286
+> 
+> 
+> ## OPPOSE
+> no_on_67 = prop67 %>% subset(stance=="OPPOSE")  
+> 
+> no_on_67 %>%
++  summarize(n()) # all 27 voted in support of over-turning the ban
+# A tibble: 1 x 1
+  `n()`
+  <int>
+1    27
+> 
+> no_on_67 %>%
++  group_by(founder) %>%
++ 	summarize(n()) # all 27 that opposed were non founders
+# A tibble: 1 x 2
+  founder `n()`
+* <lgl>   <int>
+1 FALSE      27
+> 
+> no_on_67 %>%
++  summarize("total"=sum(size,na.rm=T),"N"=n()) %>%
++  mutate(total/N) 
+# A tibble: 1 x 3
+     total     N `total/N`
+     <dbl> <int>     <dbl>
+1 2681413.    27    99312.
+> # contributions to oppose overturning the ban
+> # were on average over three hundred times higher.
+> 
+> ### Prop 63
+> prop63 = X2[X2$number==63,]
+> prop63 %>% group_by(founder) %>%
++  summarize("mean_size"=mean(size, na.rm=T),
++  'sum_size'=sum(size, na.rm=T))
+# A tibble: 2 x 3
+  founder mean_size sum_size
+* <lgl>       <dbl>    <dbl>
+1 FALSE        323. 3543236.
+2 TRUE         160.    8961 
+> 
