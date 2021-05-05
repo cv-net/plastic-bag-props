@@ -1,7 +1,7 @@
 library(stringr)
 library(dplyr)
 library(ggmap)
-register_google(key="AIzaSyBSrXvC9E2hG3w1_czko8pg9j1ss78T134") ## initialize Google Map API
+## initialize Google Map API
 
 ## truncate zip codes
 short_zips=c()
